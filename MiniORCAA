@@ -1,0 +1,553 @@
+///// REMEMBER TO ADD AN ROI BY ADDING A GEOMETRY AND RENAMING IT "roi"
+///// MINI ORCAA TOOL, MODIFIED BY ILEANA CALLEJAS, 
+///// CREATED BY BELIZE WATER RESOURCES AND BELIZE AND HONDURAS WATER RESOURCES II NASA DEVELOP TEAMS
+Map.addLayer(roi);
+// Set time frame
+var startDayInput = ee.Date('2019-11-01'); // set start time for analysis
+var endDayInput = ee.Date('2019-11-30'); // set end time for analysis
+
+Map.centerObject(roi);
+
+//Raw true color image w mosaic capabilities
+var collection = ee.ImageCollection('COPERNICUS/S2_HARMONIZED')  // searches all sentinel 2 imagery pixels... // ...filters on the metadata for pixels less than 10% cloud
+ // searches all sentinel 2 imagery pixels... // ...filters on the metadata for pixels less than 10% cloud
+  .filterDate(startDayInput ,endDayInput)//... chooses only pixels between the dates you define here
+  .filterBounds(roi) // ... that are within your aoi
+  
+print(collection) // this generates a JSON list of the images (and their metadata) which the filters found in the right-hand window.
+  
+/// so far this is finding all the images in the collection which meets the critera- the latest on top. To get a nice blended-looking mosaic, 
+// try some of the tools for 'reducing' these to one pixel (or bands of pixels in a layer stack). 
+
+var medianpixels = collection.median() // This finds the median value of all the pixels which meet the criteria. 
+
+var medianpixelsclipped = medianpixels.clip(roi).divide(10000) // this cuts up the result so that it fits neatly into your aoi
+                                                                  // and divides so that values between 0 and 1      
+
+// Now visualise the mosaic as a natural colour image. 
+Map.addLayer(medianpixelsclipped, {bands: ['B4', 'B3', 'B2'], min: 0, max: 0.3}, 'Sentinel_2 mosaic')
+
+function createAnalysisIC(startDayInput, endDayInput, roi){
+
+// Set the start and end dates of the collection from the user defined dates specified in the panel
+var start = startDayInput;
+var end = endDayInput;
+    
+// Defining function to create image collection for time specified for the different sensor collections // 
+  function filterbyDateArea (start, end, roi){       
+    var landsat8 = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2"); //0
+    var sentinel2_L1 = ee.ImageCollection('COPERNICUS/S2'); //1
+    var modis = ee.ImageCollection('NASA/OCEANDATA/MODIS-Aqua/L3SMI') //2
+          .merge(ee.ImageCollection('NASA/OCEANDATA/MODIS-Terra/L3SMI')); //3
+    var cdr = ee.ImageCollection('NOAA/PERSIANN-CDR'); //4
+      
+    var L8bandNames = ee.Image(landsat8.first()).bandNames();
+    var S2bandNames = ee.Image(sentinel2_L1.first()).bandNames();
+    var modisbandNames = ee.Image(modis.first()).bandNames();
+      
+  //Landsat 8 Cloud Mask
+  // Developed by Rodrigo E. Principe
+  //https://github.com/fitoprincipe
+    var mask = require('users/fitoprincipe/geetools:cloud_masks');
+    var mask_function = mask.landsatSR();
+      
+      
+  //Filtered datasets
+      var filteredL8 = ee.ImageCollection(landsat8) 
+        .filterBounds(roi)
+        .filterDate(start, end)
+        .map(mask_function);
+      var filteredS2L1 = ee.ImageCollection(sentinel2_L1)
+        .filterBounds(roi)
+        .filterDate(start, end);
+      var filteredMODIS = ee.ImageCollection(modis)
+        .filterBounds(roi)
+        .filterDate(start, end);
+      var filteredCDR = ee.ImageCollection(cdr)
+        .filterBounds(roi)
+        .filterDate(start, end)
+        .select('precipitation');
+      
+      // Atmospherically correct Sentinel-2 Level 1-C imagery with MAIN algorithm 
+      // Defined in Page, et. al. (2019) +++++++++++++++++++++++++++++++++++++++++++++++++++ Fuller citation
+      // Map MAIN on dataset
+      var S2_Rrs = filteredS2L1.map(MAIN);
+      // MAIN function
+      function MAIN(img){
+        var _0x9159=['tan','acos','B11','log','slice','normalizedDifference','B8A','updateMask','Image','B12','select','geometry','USGS/SRTMGL1_003','clip','Date','get','fromYMD','difference','day','int','add','subtract','cos','pow','multiply','divide','constant','MEAN_SOLAR_AZIMUTH_ANGLE','MEAN_SOLAR_ZENITH_ANGLE','sin','MEAN_INCIDENCE_ZENITH_ANGLE_B5','Array','SOLAR_IRRADIANCE_B2','SOLAR_IRRADIANCE_B3','SOLAR_IRRADIANCE_B4','SOLAR_IRRADIANCE_B5','SOLAR_IRRADIANCE_B6','SOLAR_IRRADIANCE_B7','SOLAR_IRRADIANCE_B8','SOLAR_IRRADIANCE_B11','toArray','arrayProject','arrayFlatten','addBands','exp','asin'];(function(_0x313dc6,_0x3aaea8){var _0x214232=function(_0x17272b){while(--_0x17272b){_0x313dc6['push'](_0x313dc6['shift']());}};_0x214232(++_0x3aaea8);}(_0x9159,0x1a6));var _0x4e93=function(_0x47914c,_0x2f8251){_0x47914c=_0x47914c-0x0;var _0x446de0=_0x9159[_0x47914c];return _0x446de0;};var pi=ee[_0x4e93('0x0')](3.141592);var bands=['B1','B2','B3','B4','B5','B6','B7','B8','B8A','B11',_0x4e93('0x1')];var rescale=img[_0x4e93('0x2')](bands)['divide'](0x2710);var footprint=rescale[_0x4e93('0x3')]();var DEM=ee[_0x4e93('0x0')](_0x4e93('0x4'))[_0x4e93('0x5')](footprint);var DU=ee[_0x4e93('0x0')](0x12c);var imgDate=ee[_0x4e93('0x6')](img[_0x4e93('0x7')]('system:time_start'));var FOY=ee[_0x4e93('0x6')][_0x4e93('0x8')](imgDate[_0x4e93('0x7')]('year'),0x1,0x1);var JD=imgDate[_0x4e93('0x9')](FOY,_0x4e93('0xa'))[_0x4e93('0xb')]()[_0x4e93('0xc')](0x1);var myCos=ee['Image'](0.0172)['multiply'](ee[_0x4e93('0x0')](JD)[_0x4e93('0xd')](ee[_0x4e93('0x0')](0x2)))[_0x4e93('0xe')]()[_0x4e93('0xf')](0x2);var cosd=myCos[_0x4e93('0x10')](pi[_0x4e93('0x11')](ee[_0x4e93('0x0')](0xb4)))['cos']();var d=ee[_0x4e93('0x0')](0x1)['subtract'](ee[_0x4e93('0x0')](0.01673))[_0x4e93('0x10')](cosd)[_0x4e93('0x5')](footprint);var SunAz=ee['Image'][_0x4e93('0x12')](img[_0x4e93('0x7')](_0x4e93('0x13')))[_0x4e93('0x5')](footprint);var SunZe=ee[_0x4e93('0x0')][_0x4e93('0x12')](img['get'](_0x4e93('0x14')))[_0x4e93('0x5')](footprint);var cosdSunZe=SunZe[_0x4e93('0x10')](pi[_0x4e93('0x11')](ee['Image'](0xb4)))[_0x4e93('0xe')]();var sindSunZe=SunZe[_0x4e93('0x10')](pi[_0x4e93('0x11')](ee[_0x4e93('0x0')](0xb4)))[_0x4e93('0x15')]();var SatZe=ee[_0x4e93('0x0')][_0x4e93('0x12')](img[_0x4e93('0x7')](_0x4e93('0x16')))[_0x4e93('0x5')](footprint);var cosdSatZe=SatZe[_0x4e93('0x10')](pi[_0x4e93('0x11')](ee['Image'](0xb4)))[_0x4e93('0xe')]();var sindSatZe=SatZe['multiply'](pi['divide'](ee[_0x4e93('0x0')](0xb4)))['sin']();var SatAz=ee[_0x4e93('0x0')][_0x4e93('0x12')](img[_0x4e93('0x7')]('MEAN_INCIDENCE_AZIMUTH_ANGLE_B5'))[_0x4e93('0x5')](footprint);var RelAz=SatAz[_0x4e93('0xd')](SunAz);var cosdRelAz=RelAz[_0x4e93('0x10')](pi[_0x4e93('0x11')](ee[_0x4e93('0x0')](0xb4)))[_0x4e93('0xe')]();var P=ee[_0x4e93('0x0')](0x18bcd)['multiply'](ee[_0x4e93('0x0')](0x1)[_0x4e93('0xd')](ee['Image'](0.0000225577)[_0x4e93('0x10')](DEM))[_0x4e93('0xf')](5.25588))[_0x4e93('0x10')](0.01);var Po=ee[_0x4e93('0x0')](1013.25);var ESUN=ee['Image'](ee[_0x4e93('0x17')]([ee[_0x4e93('0x0')](img[_0x4e93('0x7')]('SOLAR_IRRADIANCE_B1')),ee['Image'](img[_0x4e93('0x7')](_0x4e93('0x18'))),ee['Image'](img['get'](_0x4e93('0x19'))),ee[_0x4e93('0x0')](img[_0x4e93('0x7')](_0x4e93('0x1a'))),ee['Image'](img[_0x4e93('0x7')](_0x4e93('0x1b'))),ee[_0x4e93('0x0')](img[_0x4e93('0x7')](_0x4e93('0x1c'))),ee[_0x4e93('0x0')](img[_0x4e93('0x7')](_0x4e93('0x1d'))),ee[_0x4e93('0x0')](img[_0x4e93('0x7')](_0x4e93('0x1e'))),ee[_0x4e93('0x0')](img['get']('SOLAR_IRRADIANCE_B8A')),ee[_0x4e93('0x0')](img[_0x4e93('0x7')](_0x4e93('0x1f'))),ee[_0x4e93('0x0')](img[_0x4e93('0x7')](_0x4e93('0x18')))]))['toArray']()[_0x4e93('0x20')](0x1);ESUN=ESUN[_0x4e93('0x10')](ee[_0x4e93('0x0')](0x1));var ESUNImg=ESUN[_0x4e93('0x21')]([0x0])[_0x4e93('0x22')]([bands]);var imgArr=rescale[_0x4e93('0x2')](bands)[_0x4e93('0x20')]()['toArray'](0x1);var Ltoa=imgArr[_0x4e93('0x10')](ESUN)[_0x4e93('0x10')](cosdSunZe)[_0x4e93('0x11')](pi[_0x4e93('0x10')](d[_0x4e93('0xf')](0x2)));var bandCenter=ee[_0x4e93('0x0')](0x1bb)[_0x4e93('0x11')](0x3e8)['addBands'](ee[_0x4e93('0x0')](0x1ea)[_0x4e93('0x11')](0x3e8))[_0x4e93('0x23')](ee[_0x4e93('0x0')](0x230)['divide'](0x3e8))[_0x4e93('0x23')](ee['Image'](0x299)[_0x4e93('0x11')](0x3e8))[_0x4e93('0x23')](ee[_0x4e93('0x0')](0x2c1)[_0x4e93('0x11')](0x3e8))[_0x4e93('0x23')](ee[_0x4e93('0x0')](0x2e4)[_0x4e93('0x11')](0x3e8))[_0x4e93('0x23')](ee[_0x4e93('0x0')](0x30f)[_0x4e93('0x11')](0x3e8))[_0x4e93('0x23')](ee[_0x4e93('0x0')](0x34a)[_0x4e93('0x11')](0x3e8))['addBands'](ee['Image'](0x361)['divide'](0x3e8))['addBands'](ee[_0x4e93('0x0')](0x64a)[_0x4e93('0x11')](0x3e8))[_0x4e93('0x23')](ee['Image'](0x88e)[_0x4e93('0x11')](0x3e8))[_0x4e93('0x20')]()[_0x4e93('0x20')](0x1);var koz=ee[_0x4e93('0x0')](0.0039)[_0x4e93('0x23')](ee[_0x4e93('0x0')](0.0213))[_0x4e93('0x23')](ee[_0x4e93('0x0')](0.1052))[_0x4e93('0x23')](ee[_0x4e93('0x0')](0.0505))[_0x4e93('0x23')](ee[_0x4e93('0x0')](0.0205))[_0x4e93('0x23')](ee['Image'](0.0112))[_0x4e93('0x23')](ee[_0x4e93('0x0')](0.0075))['addBands'](ee[_0x4e93('0x0')](0.0021))[_0x4e93('0x23')](ee[_0x4e93('0x0')](0.0019))[_0x4e93('0x23')](ee[_0x4e93('0x0')](0x0))[_0x4e93('0x23')](ee[_0x4e93('0x0')](0x0))[_0x4e93('0x20')]()[_0x4e93('0x20')](0x1);var Toz=koz[_0x4e93('0x10')](DU)[_0x4e93('0x11')](ee[_0x4e93('0x0')](0x3e8));var Lt=Ltoa[_0x4e93('0x10')](Toz[_0x4e93('0x10')](ee[_0x4e93('0x0')](0x1)[_0x4e93('0x11')](cosdSunZe)[_0x4e93('0xc')](ee[_0x4e93('0x0')](0x1)[_0x4e93('0x11')](cosdSatZe)))[_0x4e93('0x24')]());var Tr=P[_0x4e93('0x11')](Po)[_0x4e93('0x10')](ee[_0x4e93('0x0')](0.008569)[_0x4e93('0x10')](bandCenter[_0x4e93('0xf')](-0x4)))[_0x4e93('0x10')](ee[_0x4e93('0x0')](0x1)['add'](ee[_0x4e93('0x0')](0.0113)[_0x4e93('0x10')](bandCenter['pow'](-0x2)))[_0x4e93('0xc')](ee['Image'](0.00013)[_0x4e93('0x10')](bandCenter[_0x4e93('0xf')](-0x4))));var theta_V=ee[_0x4e93('0x0')](1e-10);var sin_theta_j=sindSunZe[_0x4e93('0x11')](ee['Image'](1.333));var theta_j=sin_theta_j[_0x4e93('0x25')]()[_0x4e93('0x10')](ee['Image'](0xb4)['divide'](pi));var theta_SZ=SunZe;var R_theta_SZ_s=theta_SZ[_0x4e93('0x10')](pi[_0x4e93('0x11')](ee['Image'](0xb4)))[_0x4e93('0xd')](theta_j['multiply'](pi['divide'](ee['Image'](0xb4))))[_0x4e93('0x15')]()['pow'](0x2)[_0x4e93('0x11')](theta_SZ[_0x4e93('0x10')](pi['divide'](ee[_0x4e93('0x0')](0xb4)))[_0x4e93('0xc')](theta_j[_0x4e93('0x10')](pi[_0x4e93('0x11')](ee['Image'](0xb4))))['sin']()[_0x4e93('0xf')](0x2));var R_theta_V_s=ee[_0x4e93('0x0')](1e-10);var R_theta_SZ_p=theta_SZ[_0x4e93('0x10')](pi[_0x4e93('0x11')](0xb4))[_0x4e93('0xd')](theta_j[_0x4e93('0x10')](pi[_0x4e93('0x11')](0xb4)))[_0x4e93('0x26')]()[_0x4e93('0xf')](0x2)['divide'](theta_SZ[_0x4e93('0x10')](pi['divide'](0xb4))[_0x4e93('0xc')](theta_j[_0x4e93('0x10')](pi[_0x4e93('0x11')](0xb4)))[_0x4e93('0x26')]()[_0x4e93('0xf')](0x2));var R_theta_V_p=ee['Image'](1e-10);var R_theta_SZ=ee[_0x4e93('0x0')](0.5)[_0x4e93('0x10')](R_theta_SZ_s[_0x4e93('0xc')](R_theta_SZ_p));var R_theta_V=ee[_0x4e93('0x0')](0.5)[_0x4e93('0x10')](R_theta_V_s['add'](R_theta_V_p));var theta_neg=cosdSunZe[_0x4e93('0x10')](ee[_0x4e93('0x0')](-0x1))[_0x4e93('0x10')](cosdSatZe)['subtract'](sindSunZe[_0x4e93('0x10')](sindSatZe)[_0x4e93('0x10')](cosdRelAz));var theta_neg_inv=theta_neg[_0x4e93('0x27')]()[_0x4e93('0x10')](ee[_0x4e93('0x0')](0xb4)['divide'](pi));var theta_pos=cosdSunZe[_0x4e93('0x10')](cosdSatZe)[_0x4e93('0xd')](sindSunZe['multiply'](sindSatZe)[_0x4e93('0x10')](cosdRelAz));var theta_pos_inv=theta_pos['acos']()[_0x4e93('0x10')](ee['Image'](0xb4)['divide'](pi));var cosd_tni=theta_neg_inv[_0x4e93('0x10')](pi[_0x4e93('0x11')](0xb4))['cos']();var cosd_tpi=theta_pos_inv[_0x4e93('0x10')](pi[_0x4e93('0x11')](0xb4))[_0x4e93('0xe')]();var Pr_neg=ee[_0x4e93('0x0')](0.75)['multiply'](ee[_0x4e93('0x0')](0x1)[_0x4e93('0xc')](cosd_tni[_0x4e93('0xf')](0x2)));var Pr_pos=ee[_0x4e93('0x0')](0.75)[_0x4e93('0x10')](ee[_0x4e93('0x0')](0x1)['add'](cosd_tpi[_0x4e93('0xf')](0x2)));var Pr=Pr_neg['add'](R_theta_SZ[_0x4e93('0xc')](R_theta_V)[_0x4e93('0x10')](Pr_pos));var denom=ee['Image'](0x4)[_0x4e93('0x10')](pi)[_0x4e93('0x10')](cosdSatZe);var Lr=ESUN[_0x4e93('0x10')](Tr)[_0x4e93('0x10')](Pr[_0x4e93('0x11')](denom));var Lrc=Lt[_0x4e93('0xd')](Lr);var LrcImg=Lrc['arrayProject']([0x0])[_0x4e93('0x22')]([bands]);var prcImg=Lrc[_0x4e93('0x10')](pi)[_0x4e93('0x10')](d[_0x4e93('0xf')](0x2))[_0x4e93('0x11')](ESUN[_0x4e93('0x10')](cosdSunZe));var bands_nm=ee[_0x4e93('0x0')](0x1bb)[_0x4e93('0x23')](ee['Image'](0x1ea))[_0x4e93('0x23')](ee[_0x4e93('0x0')](0x230))[_0x4e93('0x23')](ee[_0x4e93('0x0')](0x299))[_0x4e93('0x23')](ee[_0x4e93('0x0')](0x2c1))[_0x4e93('0x23')](ee['Image'](0x2e4))[_0x4e93('0x23')](ee['Image'](0x30f))[_0x4e93('0x23')](ee['Image'](0x34a))['addBands'](ee[_0x4e93('0x0')](0x361))[_0x4e93('0x23')](ee['Image'](0x0))[_0x4e93('0x23')](ee[_0x4e93('0x0')](0x0))[_0x4e93('0x20')]()[_0x4e93('0x20')](0x1);var Lam_10=LrcImg[_0x4e93('0x2')](_0x4e93('0x28'));var Lam_11=LrcImg['select'](_0x4e93('0x1'));var eps=Lam_11[_0x4e93('0x11')](ESUNImg['select'](_0x4e93('0x1')))['log']()[_0x4e93('0xd')](Lam_10[_0x4e93('0x11')](ESUNImg['select'](_0x4e93('0x28')))[_0x4e93('0x29')]())[_0x4e93('0x11')](ee[_0x4e93('0x0')](0x88e)[_0x4e93('0xd')](ee[_0x4e93('0x0')](0x64a)));var Lam=Lam_11[_0x4e93('0x10')](ESUN[_0x4e93('0x11')](ESUNImg['select'](_0x4e93('0x1'))))[_0x4e93('0x10')](eps['multiply'](ee[_0x4e93('0x0')](-0x1))[_0x4e93('0x10')](bands_nm[_0x4e93('0x11')](ee[_0x4e93('0x0')](0x88e)))[_0x4e93('0x24')]());var trans=Tr['multiply'](ee[_0x4e93('0x0')](-0x1))[_0x4e93('0x11')](ee[_0x4e93('0x0')](0x2))['multiply'](ee[_0x4e93('0x0')](0x1)[_0x4e93('0x11')](cosdSatZe))['exp']();var Lw=Lrc[_0x4e93('0xd')](Lam)[_0x4e93('0x11')](trans);var pw=Lw[_0x4e93('0x10')](pi)[_0x4e93('0x10')](d[_0x4e93('0xf')](0x2))[_0x4e93('0x11')](ESUN[_0x4e93('0x10')](cosdSunZe));var S2_Rrs=pw[_0x4e93('0x11')](pi)[_0x4e93('0x21')]([0x0])['arrayFlatten']([bands])[_0x4e93('0x2a')](0x0,0x9);var ndvi=img[_0x4e93('0x2b')]([_0x4e93('0x2c'),'B4']);S2_Rrs=S2_Rrs[_0x4e93('0x2d')](S2_Rrs[_0x4e93('0x2')]('B1')['gt'](0x0));S2_Rrs=S2_Rrs[_0x4e93('0x2d')](ndvi['lt'](0x0));
+        var b11 = img.select('B11');
+        return (S2_Rrs
+                  .set('system:time_start',img.get('system:time_start')).set('CLOUDY_PIXEL_PERCENTAGE', img.get('CLOUDY_PIXEL_PERCENTAGE')));
+      }
+      
+      // Define function to mosaic images by date. Necessary for collections with dates that may have multiple tiles present.
+      function mosaicDates(images) {
+        var reducer = ee.Reducer.mean();
+        images = images.map(function(i) {
+          return i.set({date:i.date().format('YYYY-MM-dd')}); //set date for all images
+        });
+        var time = 'date';
+        // make list of distinct dates to use in join
+        var distinct = images.distinct([time]); 
+        // define filter to match images w/ same dates
+        var filter = ee.Filter.equals({leftField: time, rightField: time}); 
+        // preserve all matches generated from join
+        var join = ee.Join.saveAll('matches'); 
+        //apply join, creates collection w/ a 'matches' property
+        var results = join.apply(distinct, images, filter); 
+        //need band names variable to rename bands b/c creating new collection removes names
+        var bandNames = ee.Image(images.first()).bandNames(); 
+        results = results.map(function(i) {
+          //create new image collection for each group of matches
+          var mosaic = ee.ImageCollection.fromImages(i.get('matches')) 
+                        //sort, reduce collection to single image, rename bands
+                        .sort('system:index').reduce(reducer).rename(bandNames); 
+          //produces a single image from each group of matches with date reassigned
+          return mosaic.copyProperties(i).set(time, i.get(time)) 
+            .set('system:time_start', ee.Date(i.get(time)).millis());
+        });
+        //create a new image collection from all the new daily mosaics
+        return ee.ImageCollection(results); 
+      }
+    //Run mosaicDates function on filtered datasets to mosaic
+      var mosaickedL8 = mosaicDates(filteredL8);
+      var mosaickedS2L1 = mosaicDates(S2_Rrs);
+      var mosaickedMODIS = mosaicDates(filteredMODIS);
+    
+    return [mosaickedL8, mosaickedS2L1, filteredMODIS, filteredCDR];
+    }
+    
+    // Run the function that creates the filtered image collection for each of the sensors.
+    var filteredCollections = filterbyDateArea(start, end, roi);
+    
+    // Define the individual filtered sensor collections by accessing their index in 'filteredCollections'
+    var L8_filtColl = filteredCollections[0];
+    var S2L1_filtColl = filteredCollections[1];
+    var modis_filtColl = filteredCollections[2];
+    var cdr_filtColl = filteredCollections[3];
+    
+    
+    // Functions to map onto the image collection ================================
+    // Turbidity Algorithms
+    // Adapted from Kim, Avila, and Wang from UC Berkeley
+    // Run on Landsat 8 imagery and Sentinel-2 imagery
+    var l8_turbidity_alg = function(image) {
+          var turbidity = image.expression(
+              '(A_t * (p_w * scale_factor) / (1 - ((p_w * scale_factor )/ C)))', {
+                  'p_w': image.select('B4'), //red band mid wv_len = 645.5nm
+                  'A_t': 378.46, //calib param (ACOLITE)
+                  'B_t': 0.33, //calib param (ACOLITE)
+                  'C': 0.19905, //calib param (ACOLITE)
+                  'pi': Math.PI,
+                  'scale_factor': 0.0001 //band info
+              }).rename('l8_turb');
+                    var swir = image.select('B6');
+          var turb_mask = turbidity.updateMask(swir.lte(215)).updateMask(turbidity.gte(0));
+          return image.addBands(turb_mask);
+    };
+    
+    var s2_turbidity_alg = function(image) {
+          var turbidity = image.expression(
+              '(A_t * (p_w * scale_factor) / (1 - ((p_w * scale_factor )/ C)))', {
+                  'p_w': image.select('B4'), //red band mid wv_len = 645.5nm
+                  'A_t': 366.14, //calib param (ACOLITE)
+                  'B_t': 0.33, //calib param (ACOLITE)
+                  'C': 0.19563, //calib param (ACOLITE)
+                  'pi': Math.PI,
+                  'scale_factor': 1.0 //band info
+              }).rename('s2_turb');
+          return(turbidity.rename('s2_turb').set('system:time_start', image.get('system:time_start'))
+                      .set('CLOUDY_PIXEL_PERCENTAGE', image.get('CLOUDY_PIXEL_PERCENTAGE')));
+    };
+          
+    // Chlorophyll-a Algorithm
+    // Run on Sentinel-2 imagery
+    // First, define a function to obtain the Normalized Difference Chlorophyll Index (NDCI) from an image
+    var ndci_algorithm = function(image){
+          var ndci = image.expression(
+            '((B5*sf) - (B4*sf))/((B5*sf) + (B4*sf))', {
+              'B4': image.select('B4'),
+              'B5': image.select('B5'),
+              'sf': 0.0001
+            }).rename('NDCI');
+          return(ndci.rename('NDCI').set('system:time_start', image.get('system:time_start'))
+                      .set('CLOUDY_PIXEL_PERCENTAGE', image.get('CLOUDY_PIXEL_PERCENTAGE')));
+    };
+    // Derive the chlorophyll-a concentration using NDCI, adapted from Mishra & Mishra ++++++++++++++++ check on citations
+    var mishra_algorithm = function(image){
+          var mishra = image.expression(
+            'a0 + (a1 * ndci) + (a2 * ndci_sqrd)', {
+              'a0': 14.039,
+              'a1': 86.115,
+              'a2': 194.325,
+              'ndci': ndci_algorithm(image).select('NDCI'),
+              'ndci_sqrd': ndci_algorithm(image).select('NDCI').pow(2),
+            }).rename('s2_chl');
+          return(mishra.rename('s2_chl').set('system:time_start', image.get('system:time_start'))
+                      .set('CLOUDY_PIXEL_PERCENTAGE', image.get('CLOUDY_PIXEL_PERCENTAGE')));
+    };
+    
+    // Colored Dissolved Organic Matter (CDOM) Algorithm
+    // Adapted from Chen, et. al. (2017)
+    // Run on Sentinel-2 imagery
+    var cdom_algorithm = function(image) {
+          var cdom = ((ee.Image(22.283))
+                        .multiply((ee.Image(2.282))
+                        .pow((ee.Image(-1.724))
+                        .multiply((image.select('B3'))
+                        .divide(image.select('B5'))))));
+          return(cdom.rename('s2_cdom').set('system:time_start', image.get('system:time_start'))
+                      .set('CLOUDY_PIXEL_PERCENTAGE', image.get('CLOUDY_PIXEL_PERCENTAGE')));
+    };
+    
+    
+    // Kd(490) Algorithm 
+    // NASA Operational Algorithm by Werdell, P. J. & Bailey, S. W. (2005)
+    // Run on MODIS imagery
+    var kd490_algorithm = function(image) {
+      var blue = image.select('Rrs_488').log10();
+      var green = image.select('Rrs_547').log10();
+      var x = blue.subtract(green);
+      // MODIS CONSTANTS
+      var a = ee.Image(-0.8813);
+      var b = ee.Image(2.0584).multiply(x);
+      var c1 = ee.Image(x).pow(2);
+      var c = ee.Image(2.5878).multiply(c1);
+      var d1 = ee.Image(x).pow(3);
+      var d = ee.Image(3.4885).multiply(d1);
+      var e1 = ee.Image(x).pow(4);
+      var e = ee.Image(1.5061).multiply(e1);
+      var exp = a.subtract(b).add(c).subtract(d).subtract(e);
+      var firstterm = ee.Image(10).pow(exp);
+      var kd = firstterm.add(0.0166);
+      
+      return image.addBands(kd.rename('kd_490').set('system:time_start', image.get('system:time_start')));
+      
+    };
+ 
+    // Clip the images in each sensor collection to the roi
+    var L8_clipped = L8_filtColl.map(function(image){return image.clip(roi)});
+    var S2L1_clipped = S2L1_filtColl.map(function(image){return image.clip(roi)});
+    var cdr_clipped = cdr_filtColl.map(function(image){return image.clip(roi)});
+    var modis_clipped = modis_filtColl.map(function(image){return image.clip(roi)});
+    
+    // Map the water quality algorithms onto their respective sensor image collections
+    var L8_turb = L8_clipped.map(l8_turbidity_alg);
+    var S2L1_turb = S2L1_clipped.map(s2_turbidity_alg);
+    var S2L1_NDCI = S2L1_clipped.map(ndci_algorithm);
+    var S2L1_chla = S2L1_clipped.map(mishra_algorithm);
+    var S2L1_cdom = S2L1_clipped.map(cdom_algorithm);
+    var modis_kd490 = modis_clipped.map(kd490_algorithm);
+    
+          //Return image collections
+    return [ee.ImageCollection(L8_turb), 
+            ee.ImageCollection(S2L1_turb),
+            ee.ImageCollection(S2L1_NDCI),
+            ee.ImageCollection(S2L1_chla),
+            ee.ImageCollection(S2L1_cdom),
+            ee.ImageCollection(modis_filtColl),
+            ee.ImageCollection(cdr_clipped),
+            ee.ImageCollection(S2L1_clipped),
+            ee.ImageCollection(modis_kd490)];
+
+}
+
+
+//Masking Functions for Time Series Charts//
+//Turbidity
+var turb_totalMask = function(collection) {
+  var mask_turb = function(image) {
+    var turb_band = image.select('s2_turb');
+    var mask = turb_band.gte(0.0).and(turb_band.lte(40))
+    var masked_band = image.updateMask(mask);
+    return masked_band;
+  };
+  var masked_turb = collection.map(mask_turb);
+    function threshold(image) {
+      return image.set('s2_turb', image.get('s2_turb'));}
+  var final_turbColl = masked_turb.map(threshold);
+  return final_turbColl;
+}
+
+//NDCI
+var ndci_totalMask = function(collection) {
+  var mask_ndci = function(image) {
+    var ndci_band = image.select('NDCI');
+    var mask = ndci_band.lte(1).and(ndci_band.gte(-1.0));
+    var masked_band = image.updateMask(mask);
+  return masked_band;
+  };
+  var masked_ndci = collection.map(mask_ndci);
+  function threshold(image) {
+    return image.set('NDCI', image.get('NDCI'));}
+  var final_ndciColl = masked_ndci.map(threshold);
+  return final_ndciColl;
+};
+
+//CHL
+var chl_totalMask = function(collection) {
+  var mask_chl = function (image) {
+    var chl_band = image.select('s2_chl');
+    var mask = chl_band.lte(25);
+    var masked_band = image.updateMask(mask);
+  return masked_band;
+  };
+  var masked_chl = collection.map(mask_chl);
+  function threshold(image) {
+    return image.set('s2_chl', image.get('s2_chl'));}
+  var final_chlColl = masked_chl.map(threshold);
+  return final_chlColl;
+}
+    
+//CDOM
+var cdom_totalMask = function(collection) {
+  var mask_cdom = function(image) {
+    var cdom_band = image.select('s2_cdom');
+    var mask = cdom_band.lte(10);
+    var masked_band = image.updateMask(mask);
+    return masked_band;
+  };
+  var masked_cdom = collection.map(mask_cdom);
+  function threshold(image) {
+    return image.set('s2_cdom', image.get('s2_cdom'));}
+  
+  var final_cdomColl = masked_cdom.map(threshold);
+ return final_cdomColl;
+};
+
+////////////Visual Parameters//////////////
+// Landsat 8 Surface Reflectance
+var sr_viz = {
+  bands: ['B4','B3','B2'],
+  min:0, 
+  max:4000, 
+  gamma: 3.5, 
+};
+// Sentinel-2 Surface Reflectance 
+var s2_viz = {
+  bands: ['B4', 'B3', 'B2'],
+  min: 0.0,
+  max: 0.03,
+  gamma: 0.80
+};
+// Turbidity
+var turb_viz = {
+  min:0,
+  max:20,
+  palette: ['332288', '88CCEE', '44AA99', '999933', 'DDCC77', 'CC6677', '882255', 'AA4499']
+};
+// NDCI
+var ndci_viz = {
+  bands: "NDCI",
+  min:-0.25,
+  max:0.25,
+  palette: ['008080','f6edbd','ca562c']
+};
+// Chlorophyll-a for Sentinel-2
+var mishra_viz = {
+  bands: "s2_chl",
+  min: 0,
+  max: 15,
+  palette: ['#060060','#00008A','#1739D1','#99FF97','#60E395','#42C092']
+};
+// CDOM 
+var cdom_viz = {
+  bands: "s2_cdom",
+  min:0,
+  max:6,
+  palette: ['#3949AB', '#138D75', '#17A589', '#F4D03F', '#D35400', '#D35400']
+};
+// SST
+var sst_viz = {
+  bands: 'sst',
+  min:23,
+  max:33,
+  palette: ['#0022c9','#194bff','#EDF6FF', '#b20000', '#f00a0a']
+};
+
+// Kd(490)
+var kd490_viz = {
+  bands: 'kd_490',
+  min:0,
+  max:5,
+  palette: ['#f3e79b','#fac484','#f8a07e','#eb7f86','#ce6693','#a059a0','#5c53a5']
+};
+
+// Chlorophyll-a from MODIS
+var chlor_viz = {
+  bands: 'chlor_a',
+  min:0,
+  max:15,
+  palette: ['#d3f2a3','#97e196','#6cc08b','#4c9b82','#217a79','#105965','#074050']
+};
+
+// Particulate Organic Carbon (POC) from MODIS
+var poc_viz = {
+  bands: 'poc',
+  min:10,
+  max:500,
+  palette: ['#ffc6c4','#f4a3a8','#e38191','#cc607d','#ad466c','#8b3058','#672044']
+};
+
+var FinalCollections = createAnalysisIC(startDayInput, endDayInput, roi);
+
+
+////___ first, define function that adds layers based on the checkboxes that are selected ___////
+//images appear by cloudiness//
+function DisplayTrueColor(collection){ 
+    var S2_image = (collection.sort('CLOUDY_PIXEL_PERCENTAGE').first().clip(roi)); 
+        {Map.addLayer(S2_image, s2_viz, 'Sentinel-2 True Color')}
+    }
+    
+function DisplayTurb(collection){ 
+    var S2_image = (collection.sort('CLOUDY_PIXEL_PERCENTAGE').first().clip(roi));
+    var indexChart = ui.Chart.image.seriesByRegion({
+      imageCollection: turb_totalMask(FinalCollections[1]), 
+      regions: roi,
+      reducer: ee.Reducer.mean(),
+      scale: 100,
+      band: 's2_turb',
+      xProperty: 'system:time_start'
+      });
+        {Map.addLayer(S2_image.select('s2_turb'), turb_viz, 'Sentinel-2 Turbidity');
+        print(indexChart);
+        }
+    }
+    
+function DisplayNDCI(collection){
+    var S2_image = (collection.sort('CLOUDY_PIXEL_PERCENTAGE').first().clip(roi)); 
+    var indexChart = ui.Chart.image.seriesByRegion({
+      imageCollection: ndci_totalMask(FinalCollections[2]), 
+      regions: roi,
+      reducer: ee.Reducer.mean(),
+      scale: 100,
+      band: 'NDCI',
+      xProperty: 'system:time_start'
+      });
+        {Map.addLayer(S2_image, ndci_viz, 'NDCI');
+        print(indexChart);
+        }
+    }  
+    
+function DisplayChla(collection){
+    var S2_image = (collection.sort('CLOUDY_PIXEL_PERCENTAGE').first().clip(roi)); 
+    var indexChart = ui.Chart.image.seriesByRegion({
+      imageCollection: chl_totalMask(FinalCollections[3]), 
+      regions: roi,
+      reducer: ee.Reducer.mean(),
+      scale: 100,
+      band: 's2_chl',
+      xProperty: 'system:time_start'
+      });
+        {Map.addLayer(S2_image, mishra_viz, 'Chlorophyll-a');
+        print(indexChart);
+        }
+    }
+
+function DisplayCDOM(collection){
+    var S2_image = (collection.sort('CLOUDY_PIXEL_PERCENTAGE').first().clip(roi)); 
+    var indexChart = ui.Chart.image.seriesByRegion({
+      imageCollection: cdom_totalMask(FinalCollections[4]), 
+      regions: roi,
+      reducer: ee.Reducer.mean(),
+      scale: 100,
+      band: 's2_cdom',
+      xProperty: 'system:time_start'
+      });
+        {Map.addLayer(S2_image, cdom_viz, 'CDOM');
+        print(indexChart);
+        }
+    }    
+
+function DisplaySST(collection){
+    var modis_image = collection.first().clip(roi); 
+    var indexChart = ui.Chart.image.seriesByRegion({
+      imageCollection: FinalCollections[5], 
+      regions: roi,
+      reducer: ee.Reducer.mean(),
+      scale: 100,
+      band: 'sst',
+      xProperty: 'system:time_start'
+      });
+        {Map.addLayer(modis_image, sst_viz, 'MODIS SST');
+        print(indexChart);
+        }
+    }
+
+function DisplayKd490(collection){
+    var modis_image = collection.first().clip(roi); 
+    var indexChart = ui.Chart.image.seriesByRegion({
+      imageCollection: FinalCollections[8], 
+      regions: roi,
+      reducer: ee.Reducer.mean(),
+      scale: 100,
+      band: 'kd_490',
+      xProperty: 'system:time_start'
+      });
+        {Map.addLayer(modis_image, kd490_viz, 'MODIS Kd(490)');
+        print(indexChart);
+        }
+    }
+ 
+ function DisplayChlorA(collection){
+    var modis_image = collection.first().clip(roi); 
+    var indexChart = ui.Chart.image.seriesByRegion({
+      imageCollection: FinalCollections[5], 
+      regions: roi,
+      reducer: ee.Reducer.mean(),
+      scale: 100,
+      band: 'chlor_a',
+      xProperty: 'system:time_start'
+      });
+        {Map.addLayer(modis_image, chlor_viz, 'MODIS Chl-a');
+        print(indexChart);
+        }
+    }
+
+ function DisplayPOC(collection){
+    var modis_image = collection.first().clip(roi); 
+    var indexChart = ui.Chart.image.seriesByRegion({
+      imageCollection: FinalCollections[5], 
+      regions: roi,
+      reducer: ee.Reducer.mean(),
+      scale: 100,
+      band: 'poc',
+      xProperty: 'system:time_start'
+      });
+        {Map.addLayer(modis_image, poc_viz, 'MODIS POC');
+        print(indexChart);
+        }
+    }    
+// Run the DisplayLayers() function with FinalCollections as the input ////
+DisplayTrueColor(FinalCollections[7]) // Sentinel-2 Level 1C Collection
+DisplayTurb(FinalCollections[1]); // Sentinel-2 Turb Collections
+DisplayNDCI(FinalCollections[2]); //Sentinel-2 Level 1C NDCI Collection
+DisplayChla(FinalCollections[3]); // Sentinel-2 Level 1C Chla Collection
+DisplayCDOM(FinalCollections[4]); // Sentinel-2 Level 1C CDOM Collection
+DisplaySST(FinalCollections[5]); // MODIS SST Collection
+DisplayKd490(FinalCollections[8]); // MODIS Kd490 Collection
+DisplayChlorA(FinalCollections[8]); // MODIS Chl-a Collection
+DisplayPOC(FinalCollections[8]); // MODIS POC Collection
+
+// //////////TO EXPORT TURBIDITY
+// var S2_turb_img =FinalCollections[1].select('s2_turb')
+//     .mean()
+//     .clip(roi);
+    
+
+// //////////EXPORT IMAGE TO DRIVE
+// Export.image.toDrive({
+//   image: S2_turb_img,
+//   description: 'turb',
+//   scale: 10,
+//   region: roi
+// });
+
+
+// //////////TO EXPORT TRUE COLOR
+// Export.image.toDrive({
+//   image: medianpixelsclipped,
+//   description: 'true',
+//   scale: 10,
+//   region: roi
+// });
