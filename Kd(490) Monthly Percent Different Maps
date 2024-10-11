@@ -1,0 +1,364 @@
+// REMEBER TO ADD IN THE AQUA MODIS OCEAN COLOR DATASET AND CALL IT "OC" AND A GEOMETRY AND CALL IT "roi"
+//  FILTERING FOR SPECIFIC DATES
+var timeframe1 = ee.ImageCollection(OC).filterDate('2002-01-01', '2019-12-31');
+
+var timeframe2 = ee.ImageCollection(OC).filterDate('2020-01-01', '2020-12-31');
+
+var month = 10;
+
+// FILTER IMAGES
+var imgs1 = timeframe1.filter(ee.Filter.calendarRange(month, month,'month'));
+print(imgs1);
+
+var imgs2 = timeframe2.filter(ee.Filter.calendarRange(month, month,'month'));
+print(imgs2);
+
+
+// GET FIRST IMAGES
+var monthly = imgs1.first();
+
+// Create function
+var kd490 = function(monthly) {
+  var blue = monthly.select('Rrs_488').log10();
+  var green = monthly.select('Rrs_547').log10();
+  var x = blue.subtract(green);
+  //MODIS constants
+  var a = ee.Image(-0.8813);
+  var b = ee.Image(2.0584).multiply(x);
+  var c1 = ee.Image(x).pow(2);
+  var c = ee.Image(2.5878).multiply(c1);
+  var d1 = ee.Image(x).pow(3);
+  var d = ee.Image(3.4885).multiply(d1);
+  var e1 = ee.Image(x).pow(4);
+  var e = ee.Image(1.5061).multiply(e1);
+  var exp = a.subtract(b).add(c).subtract(d).subtract(e);
+  var firstterm = ee.Image(10).pow(exp);
+  var kd = firstterm.add(0.0166);
+  
+  return monthly.addBands(kd.rename('kd_490'));
+};
+
+// Test on image
+var test = kd490(monthly);
+
+// Apply to all images
+var kd_for_avgs = imgs1.map(kd490);
+var kd_for_rec = imgs2.map(kd490);
+
+/// Map + check scale
+var mean1 = kd_for_avgs.select('kd_490')
+    .mean()
+    .clip(roi);
+
+var mean2 = kd_for_rec.select('kd_490')
+    .mean()
+    .clip(roi);
+    
+
+var diff = mean1.subtract(mean2);
+
+// PERCENT DIFFERENCE
+var per_diff = mean2.subtract(mean1).divide(mean1).multiply(100);
+
+// // EXPORT IMAGE TO DRIVE
+// Export.image.toDrive({
+//   image: per_diff,
+//   description: 'per_diff_kd_7',
+//   scale: 4000,
+//   region: roi
+// });
+
+// VIZ
+
+var viz3 = ({
+  min: -100,
+  max: 100,
+  palette: ['#0571b0','#009392','#f1eac8','#d0587e','#ca0020']
+});
+
+// MAPPING 
+
+Map.addLayer(per_diff, viz3, 'Percent Difference');
+
+//  COLORBAR
+
+// set position of panel
+var legend = ui.Panel({
+style: {
+position: 'bottom-right',
+padding: '8px 15px'
+}
+});
+
+// Create legend title
+var legendTitle = ui.Label({
+value: '%Diff. Kd(490) (m-1)',
+style: {
+fontWeight: 'bold',
+fontSize: '14px',
+margin: '0 0 4px 0',
+padding: '0'
+}
+});
+
+// Add the title to the panel
+legend.add(legendTitle);
+
+// create the legend image
+var lon = ee.Image.pixelLonLat().select('latitude');
+var gradient = lon.multiply((viz3.max-viz3.min)/100.0).add(viz3.min);
+var legendImage = gradient.visualize(viz3);
+
+// create text on top of legend
+var panel = ui.Panel({
+widgets: [
+ui.Label(viz3['max'])
+],
+});
+
+legend.add(panel);
+
+// create thumbnail from the image
+var thumbnail = ui.Thumbnail({
+image: legendImage,
+params: {bbox:'0,0,10,100', dimensions:'10x200'},
+style: {padding: '1px', position: 'bottom-center'}
+});
+
+// add the thumbnail to the legend
+legend.add(thumbnail);
+
+// create text on top of legend
+var panel = ui.Panel({
+widgets: [
+ui.Label(viz3['min'])
+],
+});
+
+legend.add(panel);
+
+Map.add(legend);
+
+// BACKGROUND COLOR
+var mapStyle = [
+  {
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#212121"
+      }
+    ]
+  },
+  {
+    "elementType": "labels.icon",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#757575"
+      }
+    ]
+  },
+  {
+    "elementType": "labels.text.stroke",
+    "stylers": [
+      {
+        "color": "#212121"
+      }
+    ]
+  },
+  {
+    "featureType": "administrative",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#757575"
+      }
+    ]
+  },
+  {
+    "featureType": "administrative.country",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#9e9e9e"
+      }
+    ]
+  },
+  {
+    "featureType": "administrative.locality",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#bdbdbd"
+      }
+    ]
+  },
+  {
+    "featureType": "poi",
+    "elementType": "labels.text",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "poi",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#757575"
+      }
+    ]
+  },
+  {
+    "featureType": "poi.business",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "poi.park",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#181818"
+      }
+    ]
+  },
+  {
+    "featureType": "poi.park",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#616161"
+      }
+    ]
+  },
+  {
+    "featureType": "poi.park",
+    "elementType": "labels.text.stroke",
+    "stylers": [
+      {
+        "color": "#1b1b1b"
+      }
+    ]
+  },
+  {
+    "featureType": "road",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "road",
+    "elementType": "geometry.fill",
+    "stylers": [
+      {
+        "color": "#2c2c2c"
+      }
+    ]
+  },
+  {
+    "featureType": "road",
+    "elementType": "labels.icon",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "road",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#8a8a8a"
+      }
+    ]
+  },
+  {
+    "featureType": "road.arterial",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#373737"
+      }
+    ]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#3c3c3c"
+      }
+    ]
+  },
+  {
+    "featureType": "road.highway.controlled_access",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#4e4e4e"
+      }
+    ]
+  },
+  {
+    "featureType": "road.local",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#616161"
+      }
+    ]
+  },
+  {
+    "featureType": "transit",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "transit",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#757575"
+      }
+    ]
+  },
+  {
+    "featureType": "water",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#000000"
+      }
+    ]
+  },
+  {
+    "featureType": "water",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#3d3d3d"
+      }
+    ]
+  }
+]
+
+Map.setOptions('mapStyle', {mapStyle: mapStyle});
